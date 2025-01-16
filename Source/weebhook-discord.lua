@@ -1,19 +1,19 @@
-
 local HttpService = game:GetService("HttpService")
 
 local config = {
-    botName = "Advanced Notification Bot",
-    botAvatar = "https://cdn.discordapp.com/embed/avatars/4.png",
-    rateLimitCooldown = 2
+    botName = "Advanced Notification Bot", -- Nome do bot, configurável.
+    botAvatar = "https://cdn.discordapp.com/embed/avatars/4.png", -- Avatar do bot, configurável.
+    rateLimitCooldown = 2, -- Tempo mínimo entre envios.
+    defaultContent = "Esta é uma mensagem padrão. Personalize no arquivo principal!" -- Mensagem padrão configurável.
 }
 
-local function sendWebhook(webhookUrl, embed)
+local function sendWebhook(webhookUrl, embed, customContent)
     if not webhookUrl or webhookUrl == "" then
         error("[Erro] Nenhuma webhook URL foi fornecida!")
     end
 
     local payload = {
-        content = "**Aviso Automático**: Thanks for using my api! - rhyan57",
+        content = customContent or config.defaultContent,
         username = config.botName,
         avatar_url = config.botAvatar,
         embeds = { embed }
