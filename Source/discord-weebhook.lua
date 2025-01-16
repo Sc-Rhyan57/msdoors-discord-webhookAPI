@@ -14,7 +14,6 @@
     - Enhanced anti-detection
 ]]
 
--- Global API object
 getgenv().DiscordAPI = {
     Version = "2.0.0",
     Author = "Rhyan57",
@@ -22,7 +21,6 @@ getgenv().DiscordAPI = {
     LastError = nil
 }
 
--- Configuration
 local CONFIG = {
     MAX_RETRIES = 3,
     RETRY_DELAY = 5,
@@ -33,16 +31,12 @@ local CONFIG = {
     WEBHOOK_TIMEOUT = 10
 }
 
--- Internal state
 local WebhookQueue = {}
 local BatchQueue = {}
 local IsProcessing = false
 local ErrorHandlers = {}
-
--- Services
 local HttpService = game:GetService("HttpService")
 
--- Utility Functions
 local function log(message, type)
     if DiscordAPI.Debug then
         local timestamp = os.date("%H:%M:%S")
@@ -68,7 +62,6 @@ local function validateColor(color)
 end
 
 local function sanitizeEmbed(embed)
-    -- Enforce Discord's limits and requirements
     if embed.title then
         embed.title = string.sub(tostring(embed.title), 1, 256)
     end
@@ -77,7 +70,6 @@ local function sanitizeEmbed(embed)
         embed.description = string.sub(tostring(embed.description), 1, CONFIG.MAX_EMBED_LENGTH)
     end
     
-    -- Validate fields
     if embed.fields then
         local validFields = {}
         for i, field in ipairs(embed.fields) do
@@ -92,7 +84,6 @@ local function sanitizeEmbed(embed)
         embed.fields = validFields
     end
     
-    -- Validate footer
     if embed.footer then
         embed.footer.text = embed.footer.text and string.sub(tostring(embed.footer.text), 1, 2048)
     end
@@ -110,7 +101,6 @@ local function setupAntiDetection()
         local method = getnamecallmethod()
         
         if method == "HttpGet" or method == "HttpPost" then
-            -- Add random delays and headers to appear more natural
             if math.random() > 0.7 then
                 wait(math.random() * 0.3)
             end
@@ -123,63 +113,54 @@ local function setupAntiDetection()
     setreadonly(mt, true)
 end
 
--- Enhanced webhook processing
-local function processWebhook(data)
-    local success, result = pcall(function()
-        -- Add random user-agent and additional headers
-        local headers = {
-            ["Content-Type"] = "application/json",
-            ["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            ["Accept"] = "application/json, text/plain, */*"
-        }
-        
-        -- Make the request with timeout
-        local response = syn.request({
-            Url = data.url,
-            Method = "POST",
-            Headers = headers,
-            Body = HttpService:JSONEncode(data.payload),
-            Timeout = CONFIG.WEBHOOK_TIMEOUT
-        })
-        
-        -- Handle rate limiting
-        if response.StatusCode == 429 then
-            local waitTime = CONFIG.RATE_LIMIT_DELAY
-            pcall(function()
-                local rateLimit = HttpService:JSONDecode(response.Body)
-                if rateLimit.retry_after then
-                    waitTime = rateLimit.retry_after + math.random()
-                end
-            end)
-            
-            log(string.format("Rate limited, waiting %.2f seconds", waitTime), "WARN")
-            wait(waitTime)
-            return false
-        end
-        
-        -- Handle other status codes
-        if response.StatusCode >= 400 then
-            DiscordAPI.LastError = string.format("HTTP %d: %s", response.StatusCode, response.Body)
-            log(DiscordAPI.LastError, "ERROR")
-            return false
-        end
-        
-        return true
-    end)
-    
-    return success and result
-end
-
--- Queue processing
 local function processQueue()
     if IsProcessing or #WebhookQueue == 0 then return end
     IsProcessing = true
     
     while #WebhookQueue > 0 do
         local data = table.remove(WebhookQueue, 1)
-        local success = processWebhook(data)
+        local Time = os.date('!*t', os.time())
         
-        if success then
+        local success, result = pcall(function()
+            local embedData = data.payload.embeds[1]
+            embedData.timestamp = string.format('%d-%d-%dT%02d:%02d:%02dZ', Time.year, Time.month, Time.day, Time.hour, Time.min, Time.sec)
+            
+            local response = (syn and syn.request or http_request)({
+                Url = data.url,
+                Method = 'POST',
+                Headers = {
+                    ['Content-Type'] = 'application/json'
+                },
+                Body = HttpService:JSONEncode({
+                    content = data.payload.content,
+                    embeds = { embedData }
+                })
+            })
+            
+            if response.StatusCode == 429 then
+                local waitTime = CONFIG.RATE_LIMIT_DELAY
+                pcall(function()
+                    local rateLimit = HttpService:JSONDecode(response.Body)
+                    if rateLimit.retry_after then
+                        waitTime = rateLimit.retry_after + math.random()
+                    end
+                end)
+                
+                table.insert(WebhookQueue, data)
+                wait(waitTime)
+                return false
+            end
+            
+            if response.StatusCode >= 400 then
+                DiscordAPI.LastError = string.format("HTTP %d: %s", response.StatusCode, response.Body)
+                log(DiscordAPI.LastError, "ERROR")
+                return false
+            end
+            
+            return true
+        end)
+        
+        if success and result then
             if data.callback then
                 data.callback(true)
             end
@@ -198,13 +179,12 @@ local function processQueue()
             end
         end
         
-        wait(0.5) -- Prevent spamming
+        wait(0.5)
     end
     
     IsProcessing = false
 end
 
--- Public API Functions
 local G = {}
 
 function G.CONFIG(config)
@@ -213,7 +193,7 @@ function G.CONFIG(config)
     
     local payload = {
         username = config.name or "Webhook",
-        avatar_url = config.avatar,
+        avatar_url = config.avatar or 'https://cdn.discordapp.com/embed/avatars/4.png',
         content = config.message,
         embeds = {}
     }
@@ -222,21 +202,18 @@ function G.CONFIG(config)
         local embed = sanitizeEmbed({
             title = config.embed.title,
             description = config.embed.description,
-            color = validateColor(config.embed.color),
-            footer = config.embed.footer and {
-                text = config.embed.footer.text,
-                icon_url = config.embed.footer.icon
-            } or nil,
+            color = validateColor(config.embed.color or '99999'),
+            footer = config.embed.footer or { text = game.JobId },
             thumbnail = config.embed.thumbnail and {
                 url = config.embed.thumbnail
             } or nil,
             image = config.embed.image and {
                 url = config.embed.image
             } or nil,
-            author = config.embed.author and {
-                name = config.embed.author.name,
-                icon_url = config.embed.author.icon
-            } or nil,
+            author = config.embed.author or {
+                name = 'ROBLOX',
+                url = 'https://www.roblox.com/'
+            },
             fields = config.embed.fields or {}
         })
         
@@ -279,7 +256,13 @@ function G.ClearQueue()
     log("Queue cleared", "INFO")
 end
 
--- Initialize
+function G.BatchSend(configs)
+    for _, config in ipairs(configs) do
+        G.CONFIG(config)
+        wait(0.1)
+    end
+end
+
 do
     setupAntiDetection()
     log("API Initialized successfully!")
