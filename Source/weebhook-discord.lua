@@ -1,10 +1,10 @@
 local HttpService = game:GetService("HttpService")
 
 local config = {
-    botName = "Advanced Notification Bot", -- Nome do bot, configurável.
-    botAvatar = "https://cdn.discordapp.com/embed/avatars/4.png", -- Avatar do bot, configurável.
-    rateLimitCooldown = 2, -- Tempo mínimo entre envios.
-    defaultContent = "Esta é uma mensagem padrão. Personalize no arquivo principal!" -- Mensagem padrão configurável.
+    botName = "Advanced Notification Bot",
+    botAvatar = "https://cdn.discordapp.com/embed/avatars/4.png",
+    rateLimitCooldown = 2,
+    defaultContent = "Esta é uma mensagem padrão. Personalize no arquivo principal!"
 }
 
 local function sendWebhook(webhookUrl, embed, customContent)
