@@ -13,7 +13,7 @@ local function sendWebhook(webhookUrl, embed)
     end
 
     local payload = {
-        content = "**Aviso Automático**: Sistema Webhook Executado.",
+        content = "**Aviso Automático**: Thanks for using my api! - rhyan57",
         username = config.botName,
         avatar_url = config.botAvatar,
         embeds = { embed }
